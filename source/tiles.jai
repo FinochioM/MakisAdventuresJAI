@@ -34,8 +34,10 @@ init_tile_system :: (tile_width: s32, tile_height: s32, grid_width: s32, grid_he
     system: Tile_System;
     system.tile_width = tile_width;
     system.tile_height = tile_height;
+
     system.grid_width = grid_width;
     system.grid_height = grid_height;
+
     return system;
 }
 

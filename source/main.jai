@@ -233,6 +233,8 @@ invaders_simulate :: () {
             break;
         }
 
+        if is_blocking_keys && event.type == .KEYBOARD continue;
+
         if event.key_code == .ESCAPE
             if event.key_pressed should_quit_game = true;
 
@@ -282,7 +284,7 @@ my_init_fonts :: () {
     path := path_strip_filename(get_path_of_running_executable());
 
     set_working_directory(path);
-    pixel_height := playfield_height / 24;
+    pixel_height := playfield_height / 12;
 
     my_font = Simp.get_font_at_size("data", "Anonymous Pro.ttf", pixel_height);
     assert(my_font != null);
@@ -292,20 +294,17 @@ resize_playfield :: () {
     if !window_height return;  // Avoid dividing by zero!
 
     window_aspect = window_width / cast(float) window_height;
-    logical_aspect := LOGICAL_WIDTH / cast(float) LOGICAL_HEIGHT;
 
-    if values_are_close(window_aspect, logical_aspect) {
-        playfield_width  = LOGICAL_WIDTH;
-        playfield_height = LOGICAL_HEIGHT;
-        scale_factor = window_width / cast(float) LOGICAL_WIDTH;
-    } else if window_aspect > logical_aspect {
-        playfield_height = LOGICAL_HEIGHT;
-        playfield_width  = LOGICAL_WIDTH;
-        scale_factor = window_height / cast(float) LOGICAL_HEIGHT;
+    playfield_width = LOGICAL_WIDTH;
+    playfield_height = LOGICAL_HEIGHT;
+
+    scale_x := window_width / cast(float) LOGICAL_WIDTH;
+    scale_y := window_height / cast(float) LOGICAL_HEIGHT;
+
+    if scale_x < scale_y {
+        scale_factor = scale_x;
     } else {
-        playfield_width  = LOGICAL_WIDTH;
-        playfield_height = LOGICAL_HEIGHT;
-        scale_factor = window_width / cast(float) LOGICAL_WIDTH;
+        scale_factor = scale_y;
     }
 
     print("Playfield: %x%, Scale: %\n", playfield_width, playfield_height, scale_factor);
@@ -333,9 +332,65 @@ absolute_coords_from_window :: (window_pos: Vector2) -> Vector2 {
     offset_y := (window_height - (playfield_height * scale_factor)) * 0.5;
 
     result := window_pos;
+
     result.x -= offset_x;
     result.y -= offset_y;
+
     result /= scale_factor;
 
     return result;
+}
+
+load_map_by_name :: (tile_system: *Tile_System, map_name: string) -> bool {
+    filename := map_name;
+    if !ends_with(filename, ".map") {
+        filename = sprint("%%.map", filename);
+    }
+
+    file, success := file_open(filename, for_writing=false);
+    if !success {
+        print("Failed to load map %\n", filename);
+        return false;
+    }
+
+    for * layer: tile_system.layers {
+        free(layer.tiles.data);
+        free(layer.name);
+    }
+    array_reset(*tile_system.layers);
+
+    read_struct(*file, *tile_system.tile_width);
+    read_struct(*file, *tile_system.tile_height);
+    read_struct(*file, *tile_system.grid_width);
+    read_struct(*file, *tile_system.grid_height);
+
+    layer_count: s32;
+    read_struct(*file, *layer_count);
+
+    for 0..layer_count-1 {
+        name_length: s32;
+        read_struct(*file, *name_length);
+        name_data := alloc(name_length);
+        read_bytes(*file, name_data, name_length);
+        name: string;
+        name.data = name_data;
+        name.count = cast(s64) name_length;
+
+        layer := array_add(*tile_system.layers);
+        layer.name = name;
+
+        read_struct(*file, *layer.z_index);
+        read_struct(*file, *layer.visible);
+        read_struct(*file, *layer.collision_layer);
+        read_struct(*file, *layer.update_layer);
+
+        layer.tiles = NewArray(tile_system.grid_width * tile_system.grid_height, Tile);
+        for * tile: layer.tiles {
+            read_struct(*file, tile);
+        }
+    }
+
+    file_close(*file);
+    print("Map % loaded successfully\n", filename);
+    return true;
 }
