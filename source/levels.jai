@@ -21,16 +21,16 @@ DEFINED_LEVELS :: Level_Config.[
 
 init_new_level :: (index: int) {
     orig_index := index;
-    
+
     time_of_level_start := seconds_since_init();
     dudes_spawned_in_this_level = 0;
     strafe_countdown = 2.0;
-    
+
     Clamp(*index, 0, DEFINED_LEVELS.count-1);
     config := DEFINED_LEVELS[index];
 
     current_invader_radius = INVADER_RADIUS_AT_SCALE_1 * config.enemy_scale;
-    
+
     for * layout_lines release(it);
     array_reset(*layout_lines);
 
@@ -38,7 +38,7 @@ init_new_level :: (index: int) {
         line := array_add(*layout_lines);
         line.y  = 0.6 + 0.1 * line_index;
         line.line_index = line_index;
-        
+
         num_invaders := config.invaders_per_line;
 
         margin := current_invader_radius * 0.2;
@@ -52,7 +52,7 @@ init_new_level :: (index: int) {
 
         line.spawn_countdown = 0.1 + line_index * 1.0;
         array_resize(*line.invader_slots, num_invaders);
-        
+
         for invader_index: 0..num_invaders-1 {
             t := invader_index / cast(float)(num_invaders - 1);
             position := Vector2.{lerp(line.x0, line.x1, t), line.y};
@@ -73,7 +73,7 @@ init_new_level :: (index: int) {
 spawn_invaders :: (line: *Layout_Line) {
     num_invaders := cast(s32) line.invader_slots.count;
     dudes_spawned_in_this_level += num_invaders;
-    
+
     for invader_index: 0..num_invaders-1 {
         add_invader(line.line_index, invader_index);
     }
@@ -89,9 +89,9 @@ add_invader :: (line_index: s32, slot_index: s32) {
     invader.position   = get_target_position(invader);
     invader.position.y = live_y_max;
     invader.spawn_position = invader.position;
-    
+
     invader.action = .FALLING_IN;
-    
+
     array_add(*live_invaders, invader);
 }
 
@@ -100,12 +100,12 @@ add_invader :: (line_index: s32, slot_index: s32) {
 Layout_Line :: struct {
     x0, x1: float;
     y:      float;
-    
+
     horizontal_spacing := 1.0;
     line_index: s32;
 
     spawn_countdown := 0.1;
-    
+
     invader_slots: [..] Layout_Slot;
 }
 
