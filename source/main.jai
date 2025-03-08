@@ -14,10 +14,10 @@ using Sound :: #import "Sound_Player";
 Simp    :: #import "Simp";
 Texture :: Simp.Texture;
 
-//#load "entities.jai";
 //#load "particles.jai";
 //#load "simulate.jai";
 //#load "pathing.jai";
+#load "entities.jai";
 #load "levels.jai";
 #load "tiles.jai";
 #load "map_editor.jai";
@@ -143,8 +143,9 @@ main :: () {
     if objects_layer objects_layer.collision_layer = true;
 
     init_tile_textures();
-
     init_editor(*tile_system);
+
+    init_player();
 
     while !should_quit_game {
         reset_temporary_storage();
@@ -176,6 +177,7 @@ main :: () {
         Simp.set_scissor(xx playfield_x0.x, xx playfield_x0.y, xx playfield_x1.x, xx playfield_x1.y);
 
         render_tile_system(*tile_system);
+        render_player();
         render_editor_overlay(*tile_system);
         render_level_transition();
         render_level_info();
@@ -233,6 +235,7 @@ invaders_simulate :: () {
 
     update_current_level(current_dt);
     update_level_transition(current_dt);
+    update_player(current_dt);
 
     for event : events_this_frame {
         if event.type == .QUIT {
@@ -256,6 +259,15 @@ invaders_simulate :: () {
                     load_next_level();
                 }
             }
+
+        if event.type == .KEYBOARD {
+            key := event.key_code;
+
+            if key == .ARROW_LEFT   key_left  = event.key_pressed;
+            if key == .ARROW_RIGHT  key_right = event.key_pressed;
+            if key == .ARROW_DOWN   key_down  = event.key_pressed;
+            if key == .ARROW_UP     key_up    = event.key_pressed;
+        }
     }
 }
 

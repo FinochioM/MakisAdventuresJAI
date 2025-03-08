@@ -22,8 +22,8 @@ init_levels :: () {
     }
     array_reset(*game_levels);
 
-    register_level("Home Village", "LEVEL1");
-    register_level("Dark Forest", "LEVEL2");
+    register_level("Home Village", "LEVEL1", .{LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2});
+    register_level("Dark Forest", "LEVEL2", .{LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2});
 
     print("Registered % levels\n", game_levels.count);
 
