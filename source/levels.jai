@@ -1,128 +1,264 @@
-fader_alpha : float = 0;
-fader_text := "";
+Level :: struct {
+    name: string;
+    map_name: string;
 
-Level_Config :: struct {
-    invaders_per_line : s32 = 3;
-    num_lines         : s32 = 3;
+    // level-specific data here:
+    spawn_point: Vector2 = .{0, 0};  // Default player spawn position
+    background_music: string;        // Music file to play
 
-    enemy_scale       := 1.0;
+    // Custom level data (for game progression, etc.)
+    custom_flags: u32;
 }
 
-DEFINED_LEVELS :: Level_Config.[
-    .{num_lines = 2, invaders_per_line = 5, enemy_scale = 1.4},
-    .{num_lines = 3, invaders_per_line = 4, enemy_scale = 1.4},
-    .{num_lines = 3, invaders_per_line = 5, enemy_scale = 1.3},
-    .{num_lines = 4, invaders_per_line = 5, enemy_scale = 1.3},
-    .{num_lines = 4, invaders_per_line = 7, enemy_scale = 1.2},
-    .{num_lines = 5, invaders_per_line = 7, enemy_scale = 1.2},
-    .{num_lines = 6, invaders_per_line = 7, enemy_scale = 1.1},
-    .{num_lines = 6, invaders_per_line = 8, enemy_scale = 1.0},
-];
+game_levels: [..] Level;
 
-init_new_level :: (index: int) {
-    orig_index := index;
+current_level_index: s32 = -1;
 
-    time_of_level_start := seconds_since_init();
-    dudes_spawned_in_this_level = 0;
-    strafe_countdown = 2.0;
+init_levels :: () {
+    for * game_levels {
+        if it.name free(it.name);
+        if it.map_name free(it.map_name);
+        if it.background_music.count > 0 free(it.background_music);
+    }
+    array_reset(*game_levels);
 
-    Clamp(*index, 0, DEFINED_LEVELS.count-1);
-    config := DEFINED_LEVELS[index];
+    register_level("Home Village", "LEVEL1");
+    register_level("Dark Forest", "LEVEL2");
 
-    current_invader_radius = INVADER_RADIUS_AT_SCALE_1 * config.enemy_scale;
+    print("Registered % levels\n", game_levels.count);
 
-    for * layout_lines release(it);
-    array_reset(*layout_lines);
+    if game_levels.count > 0 {
+        success := load_level(0);
+        if !success {
+            print("Failed to load initial level!\n");
+        }
+    } else {
+        print("No levels registered!\n");
+    }
+}
 
-    for line_index: 0..config.num_lines-1 {
-        line := array_add(*layout_lines);
-        line.y  = 0.6 + 0.1 * line_index;
-        line.line_index = line_index;
+register_level :: (name: string, map_name: string, spawn_point: Vector2 = .{0, 0},
+                  background_music: string = "", custom_flags: u32 = 0) -> s32 {
+    level := array_add(*game_levels);
+    level.name = copy_string(name);
+    level.map_name = copy_string(map_name);
+    level.spawn_point = spawn_point;
 
-        num_invaders := config.invaders_per_line;
+    if background_music.count > 0 {
+        level.background_music = copy_string(background_music);
+    } else {
+        level.background_music = "";
+    }
 
-        margin := current_invader_radius * 0.2;
-        line_width := num_invaders * current_invader_radius * 2 + (num_invaders - 1) * margin;
+    level.custom_flags = custom_flags;
+    return cast(s32) game_levels.count - 1;
+}
 
-        x0 := 0.5 - line_width * .5;
-        x1 := 0.5 + line_width * .5;
+load_level :: (level_index: s32) -> bool {
+    if level_index < 0 || level_index >= game_levels.count {
+        print("Error: Invalid level index %\n", level_index);
+        return false;
+    }
 
-        line.x0 = x0;
-        line.x1 = x1;
+    level := *game_levels[level_index];
 
-        line.spawn_countdown = 0.1 + line_index * 1.0;
-        array_resize(*line.invader_slots, num_invaders);
+    success := load_map_by_name(*tile_system, level.map_name);
+    if !success {
+        print("Failed to load map for level: %\n", level.name);
+        return false;
+    }
 
-        for invader_index: 0..num_invaders-1 {
-            t := invader_index / cast(float)(num_invaders - 1);
-            position := Vector2.{lerp(line.x0, line.x1, t), line.y};
-            line.invader_slots[invader_index].position = position;
+    // Update current level index
+    current_level_index = level_index;
+
+    // Handle level-specific initialization here
+    // setting player position to spawn point could be an example.
+
+    print("Successfully loaded level: %\n", level.name);
+    return true;
+}
+
+load_level_by_name :: (level_name: string) -> bool {
+    for game_levels {
+        if it.name == level_name {
+            return load_level(cast(s32) it_index);
         }
     }
 
-    // play_sound(*entity_manager, "new_wave");
-
-    if fader_text free(fader_text.data);
-
-    fader_text = sprint("Stage %", orig_index);
-    fader_alpha = 1;
-
-    play_sound(*sound_new_wave, false);
+    print("Error: Level '%' not found\n", level_name);
+    return false;
 }
 
-spawn_invaders :: (line: *Layout_Line) {
-    num_invaders := cast(s32) line.invader_slots.count;
-    dudes_spawned_in_this_level += num_invaders;
+load_next_level :: () -> bool {
+    next_index := (current_level_index + 1) % game_levels.count;
+    return load_level(cast(s32) next_index);
+}
 
-    for invader_index: 0..num_invaders-1 {
-        add_invader(line.line_index, invader_index);
+get_current_level :: () -> *Level {
+    if current_level_index < 0 || current_level_index >= game_levels.count {
+        return null;
+    }
+    return *game_levels[current_level_index];
+}
+
+update_current_level :: (dt: float) {
+    level := get_current_level();
+    if !level return;
+
+    // I could mplement level-specific update logic here
+    // checking win conditions, spawning enemies, etc.?
+}
+
+release_levels :: () {
+    for * game_levels {
+        free(it.name);
+        free(it.map_name);
+        if it.background_music.count > 0 free(it.background_music);
+    }
+    array_free(game_levels);
+}
+
+fader_alpha : float = 0;
+fader_text := "";
+
+update_level_transition :: (dt: float) -> bool {
+    if fader_alpha > 0 {
+        fader_alpha -= dt;
+        if fader_alpha < 0 fader_alpha = 0;
+        return true;
+    }
+    return false;
+}
+
+start_level_transition :: (text: string) {
+    if fader_text free(fader_text.data);
+    fader_text = copy_string(text);
+    fader_alpha = 1.0;
+}
+
+render_level_transition :: () {
+    if fader_alpha <= 0 return;
+
+    Simp.set_shader_for_color();
+    Simp.immediate_quad(
+        0, 0,
+        cast(float) window_width, cast(float) window_height,
+        Vector4.{0, 0, 0, fader_alpha}
+    );
+
+    if fader_text.count > 0 {
+        Simp.set_shader_for_text();
+
+        text_width := Simp.draw_text(my_font, -10000, -10000, fader_text);
+
+        text_x := (window_width - text_width) * 0.5;
+        text_y := window_height * 0.5;
+
+        Simp.draw_text(my_font, xx text_x, xx text_y, fader_text, Vector4.{1, 1, 1, fader_alpha});
     }
 }
 
-add_invader :: (line_index: s32, slot_index: s32) {
-    invader := New(Invader);
-    which := random_get() % cast(u32) invader_maps.count;
-    invader.map = *invader_maps[which];
-    invader.line_index = line_index;
-    invader.slot_index = slot_index;
+load_map_by_name :: (tile_system: *Tile_System, map_name: string) -> bool {
+    possible_filenames: [..] string;
+    possible_filenames.allocator = temp;
 
-    invader.position   = get_target_position(invader);
-    invader.position.y = live_y_max;
-    invader.spawn_position = invader.position;
+    array_add(*possible_filenames, map_name);
 
-    invader.action = .FALLING_IN;
+    if !ends_with(map_name, ".map") {
+        array_add(*possible_filenames, tprint("%1.map", map_name));
+    }
 
-    array_add(*live_invaders, invader);
+    if !ends_with(map_name, ".dat") {
+        array_add(*possible_filenames, tprint("%1.dat", map_name));
+    }
+
+    array_add(*possible_filenames, tprint("%/%", data_folder, map_name));
+    if !ends_with(map_name, ".map") {
+        array_add(*possible_filenames, tprint("%/%1.map", data_folder, map_name));
+    }
+    if !ends_with(map_name, ".dat") {
+        array_add(*possible_filenames, tprint("%/%1.dat", data_folder, map_name));
+    }
+
+    success := false;
+    filename: string;
+
+    print("Trying to load map %... Checking these locations:\n", map_name);
+    for possible_filenames {
+        print("  %\n", it);
+        file, file_success := file_open(it, for_writing=false);
+        if file_success {
+            success = true;
+            filename = it;
+            print("Found map at: %\n", filename);
+
+            for * layer: tile_system.layers {
+                free(layer.tiles.data);
+                free(layer.name);
+            }
+            array_reset(*tile_system.layers);
+
+            read_struct(*file, *tile_system.tile_width);
+            read_struct(*file, *tile_system.tile_height);
+            read_struct(*file, *tile_system.grid_width);
+            read_struct(*file, *tile_system.grid_height);
+
+            layer_count: s32;
+            read_struct(*file, *layer_count);
+
+            print("Map % has % layers\n", filename, layer_count);
+
+            for 0..layer_count-1 {
+                name_length: s32;
+                read_struct(*file, *name_length);
+                name_data := alloc(name_length);
+                read_bytes(*file, name_data, name_length);
+                name: string;
+                name.data = name_data;
+                name.count = cast(s64) name_length;
+
+                layer := array_add(*tile_system.layers);
+                layer.name = name;
+
+                read_struct(*file, *layer.z_index);
+                read_struct(*file, *layer.visible);
+                read_struct(*file, *layer.collision_layer);
+                read_struct(*file, *layer.update_layer);
+
+                layer.tiles = NewArray(tile_system.grid_width * tile_system.grid_height, Tile);
+                for * tile: layer.tiles {
+                    read_struct(*file, tile);
+                }
+
+                print("  Loaded layer '%' with %x% tiles\n",
+                      layer.name, tile_system.grid_width, tile_system.grid_height);
+            }
+
+            file_close(*file);
+            print("Map % loaded successfully\n", filename);
+            break;
+        }
+    }
+
+    if !success {
+        print("Failed to load map % from any location.\n", map_name);
+    }
+
+    return success;
 }
 
+render_level_info :: () {
+    level := get_current_level();
+    if !level return;
 
+    Simp.set_shader_for_text();
 
-Layout_Line :: struct {
-    x0, x1: float;
-    y:      float;
+    level_text := tprint("Current Level: % (%)", level.name, current_level_index);
+    Simp.draw_text(my_font, 20, window_height - 60, level_text, Vector4.{1, 1, 0, 1});
 
-    horizontal_spacing := 1.0;
-    line_index: s32;
+    map_text := tprint("Map: %", level.map_name);
+    Simp.draw_text(my_font, 20, window_height - 90, map_text, Vector4.{1, 1, 0, 1});
 
-    spawn_countdown := 0.1;
-
-    invader_slots: [..] Layout_Slot;
+    help_text := "Press N to switch levels";
+    Simp.draw_text(my_font, 20, window_height - 120, help_text, Vector4.{0.7, 0.7, 0.7, 1});
 }
-
-Layout_Slot :: struct {
-    position: Vector2;
-}
-
-layout_lines: [..] Layout_Line;
-
-release :: (line: *Layout_Line) {
-    array_free(line.invader_slots);
-}
-
-
-formation_offset: Vector2;
-time_of_level_start: float64;
-dudes_spawned_in_this_level := 0;
-current_aggro: float;
-strafe_countdown := 2.0;
-current_invader_radius: float;

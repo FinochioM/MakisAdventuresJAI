@@ -15,10 +15,10 @@ Simp    :: #import "Simp";
 Texture :: Simp.Texture;
 
 //#load "entities.jai";
-//#load "levels.jai";
 //#load "particles.jai";
 //#load "simulate.jai";
 //#load "pathing.jai";
+#load "levels.jai";
 #load "tiles.jai";
 #load "map_editor.jai";
 
@@ -129,6 +129,7 @@ main :: () {
     }
 
     init_textures();
+    init_levels();
     resize_playfield();
     my_init_fonts();
 
@@ -176,6 +177,8 @@ main :: () {
 
         render_tile_system(*tile_system);
         render_editor_overlay(*tile_system);
+        render_level_transition();
+        render_level_info();
 
         Simp.clear_scissor();
 
@@ -184,6 +187,7 @@ main :: () {
         memory_visualizer_per_frame_update();
     }
 
+    release_levels();
     release_tile_system(*tile_system);
     sound_player_shutdown();
 }
@@ -227,6 +231,9 @@ invaders_simulate :: () {
 
     // Sound.update();
 
+    update_current_level(current_dt);
+    update_level_transition(current_dt);
+
     for event : events_this_frame {
         if event.type == .QUIT {
             should_quit_game = true;
@@ -240,6 +247,15 @@ invaders_simulate :: () {
 
         if event.key_code == #char "E"
             if event.key_pressed toggle_editor();
+
+        if event.key_code == #char "N"
+            if event.key_pressed {
+                level := get_current_level();
+                if level {
+                    start_level_transition(tprint("Loading %", game_levels[(current_level_index + 1) % game_levels.count].name));
+                    load_next_level();
+                }
+            }
     }
 }
 
@@ -339,58 +355,4 @@ absolute_coords_from_window :: (window_pos: Vector2) -> Vector2 {
     result /= scale_factor;
 
     return result;
-}
-
-load_map_by_name :: (tile_system: *Tile_System, map_name: string) -> bool {
-    filename := map_name;
-    if !ends_with(filename, ".map") {
-        filename = sprint("%%.map", filename);
-    }
-
-    file, success := file_open(filename, for_writing=false);
-    if !success {
-        print("Failed to load map %\n", filename);
-        return false;
-    }
-
-    for * layer: tile_system.layers {
-        free(layer.tiles.data);
-        free(layer.name);
-    }
-    array_reset(*tile_system.layers);
-
-    read_struct(*file, *tile_system.tile_width);
-    read_struct(*file, *tile_system.tile_height);
-    read_struct(*file, *tile_system.grid_width);
-    read_struct(*file, *tile_system.grid_height);
-
-    layer_count: s32;
-    read_struct(*file, *layer_count);
-
-    for 0..layer_count-1 {
-        name_length: s32;
-        read_struct(*file, *name_length);
-        name_data := alloc(name_length);
-        read_bytes(*file, name_data, name_length);
-        name: string;
-        name.data = name_data;
-        name.count = cast(s64) name_length;
-
-        layer := array_add(*tile_system.layers);
-        layer.name = name;
-
-        read_struct(*file, *layer.z_index);
-        read_struct(*file, *layer.visible);
-        read_struct(*file, *layer.collision_layer);
-        read_struct(*file, *layer.update_layer);
-
-        layer.tiles = NewArray(tile_system.grid_width * tile_system.grid_height, Tile);
-        for * tile: layer.tiles {
-            read_struct(*file, tile);
-        }
-    }
-
-    file_close(*file);
-    print("Map % loaded successfully\n", filename);
-    return true;
 }
