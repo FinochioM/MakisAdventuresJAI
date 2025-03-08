@@ -20,6 +20,7 @@ Texture :: Simp.Texture;
 //#load "simulate.jai";
 //#load "pathing.jai";
 #load "tiles.jai";
+#load "map_editor.jai";
 
 ASPECT :: (1280.0 / 720.0);
 VPIXELS :: 720;
@@ -142,6 +143,8 @@ main :: () {
 
     init_tile_textures();
 
+    init_editor(*tile_system);
+
     while !should_quit_game {
         reset_temporary_storage();
 
@@ -163,6 +166,7 @@ main :: () {
         }
 
         invaders_simulate();
+        update_editor(*tile_system);
 
         Simp.clear_render_target(.1, .1, .1, 1);
 
@@ -171,6 +175,7 @@ main :: () {
         Simp.set_scissor(xx playfield_x0.x, xx playfield_x0.y, xx playfield_x1.x, xx playfield_x1.y);
 
         render_tile_system(*tile_system);
+        render_editor_overlay(*tile_system);
 
         Simp.clear_scissor();
 
@@ -191,43 +196,6 @@ init_textures :: () {
 init_tile_textures :: () {
     grass_tile_index := load_tile_texture(*tile_system, "grass.png");
     path_tile_index := load_tile_texture(*tile_system, "path.png");
-
-    if path_tile_index < 0 {
-        print("Warning: path.png not found, using grass instead\n");
-        path_tile_index = grass_tile_index;
-    }
-
-    if grass_tile_index >= 0 {
-        background_layer := get_layer(*tile_system, "background");
-        if background_layer {
-            for y: 0..tile_system.grid_height-1 {
-                for x: 0..tile_system.grid_width-1 {
-                    set_tile(*tile_system, "background", x, y, grass_tile_index);
-                }
-            }
-        }
-    }
-
-    foreground_layer := get_layer(*tile_system, "foreground");
-    if foreground_layer && path_tile_index >= 0 {
-        middle_y := tile_system.grid_height / 2;
-        middle_x := tile_system.grid_width / 2;
-
-        for x: 5..middle_x+10 {
-            set_tile(*tile_system, "foreground", x, middle_y, path_tile_index);
-        }
-
-        for y: middle_y..tile_system.grid_height-5 {
-            set_tile(*tile_system, "foreground", middle_x, y, path_tile_index);
-        }
-
-        for x: 5..middle_x+10 {
-            set_tile_data(*tile_system, "foreground", x, middle_y, true, 1);
-        }
-        for y: middle_y..tile_system.grid_height-5 {
-            set_tile_data(*tile_system, "foreground", middle_x, y, true, 1);
-        }
-    }
 }
 
 make_texture :: (name: string) -> Texture, bool {
@@ -267,6 +235,9 @@ invaders_simulate :: () {
 
         if event.key_code == .ESCAPE
             if event.key_pressed should_quit_game = true;
+
+        if event.key_code == #char "E"
+            if event.key_pressed toggle_editor();
     }
 }
 
