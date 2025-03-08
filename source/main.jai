@@ -308,14 +308,12 @@ init_tile_textures :: () {
     grass_tile_index := load_tile_texture(*tile_system, "grass.png");
     path_tile_index := load_tile_texture(*tile_system, "path.png");
 
-    // If path texture doesn't exist yet, you could use grass as a fallback
     if path_tile_index < 0 {
         print("Warning: path.png not found, using grass instead\n");
         path_tile_index = grass_tile_index;
     }
 
     if grass_tile_index >= 0 {
-        // Fill the ENTIRE background with grass tiles
         background_layer := get_layer(*tile_system, "background");
         if background_layer {
             for y: 0..tile_system.grid_height-1 {
@@ -326,27 +324,19 @@ init_tile_textures :: () {
         }
     }
 
-    // Add a path on the foreground layer
     foreground_layer := get_layer(*tile_system, "foreground");
     if foreground_layer && path_tile_index >= 0 {
-        // Create a simple path - this will form an "L" shape
-
-        // Calculate middle of screen for path positioning
         middle_y := tile_system.grid_height / 2;
         middle_x := tile_system.grid_width / 2;
 
-        // Horizontal path section
         for x: 5..middle_x+10 {
             set_tile(*tile_system, "foreground", x, middle_y, path_tile_index);
         }
 
-        // Vertical path section
         for y: middle_y..tile_system.grid_height-5 {
             set_tile(*tile_system, "foreground", middle_x, y, path_tile_index);
         }
 
-        // You can also set some tile properties for the path if needed
-        // For example, making it walkable but with different custom flags
         for x: 5..middle_x+10 {
             set_tile_data(*tile_system, "foreground", x, middle_y, true, 1);
         }
@@ -360,7 +350,7 @@ make_texture :: (name: string) -> Texture, bool {
     filename := tprint("%/%", data_folder, name);
 
     result: Texture;
-    success := Simp.texture_load_from_file(*result, filename);
+    success := Simp.texture_load_from_file(*result, filename, nearest = true);
 
     return result, success;
 }
@@ -385,63 +375,6 @@ invaders_simulate :: () {
 
     // Sound.update();
 
-    old_invincibility := ship_invincibility_countdown;
-
-    countdown(*ship_shot_cooldown);
-    countdown(*ship_invincibility_countdown);
-    countdown(*ship_v_shot_stability_countdown);
-    countdown(*ship_penetrating_countdown);
-
-    if ship_v_shot_stability_countdown <= 0 {
-        ship_v_shot_angle_target = 0;
-
-        // We are shrinking.
-        if ship_v_shot_angle_current > ship_v_shot_angle_target {
-            d_angle := SHIP_V_SHOT_SHRINK_DEGREES_PER_SECOND * current_dt;
-            ship_v_shot_angle_current -= d_angle;
-            if ship_v_shot_angle_current < 0  ship_v_shot_angle_current = 0;
-        }
-    } else {
-        // We are growing.
-        if ship_v_shot_angle_current < ship_v_shot_angle_target {
-            ship_v_shot_angle_current += SHIP_V_SHOT_EXPAND_DEGREES_PER_SECOND * current_dt;
-            if ship_v_shot_angle_current > ship_v_shot_angle_target  ship_v_shot_angle_current = ship_v_shot_angle_target;
-        }
-    }
-
-    if ship_invincibility_countdown <= 0 && old_invincibility > 0 {
-        play_sound(*sound_shield_end);
-    }
-
-    if respawn_countdown >= 0 {
-        respawn_countdown -= current_dt;
-        if respawn_countdown < 0 {
-            lives -= 1;
-
-            if lives < 0 {
-                should_quit_game = true;
-            } else {
-                init_ship_position();
-                ship_destroyed = false;
-            }
-        }
-    }
-
-    if !live_invaders {
-        found := false;
-        for * layout_lines {
-            if it.spawn_countdown >= 0 {
-                found = true;
-                break;
-            }
-        }
-
-        if !found {
-            level_index += 1;
-            init_new_level(level_index);
-        }
-    }
-
     for event : events_this_frame {
         if event.type == .QUIT {
             should_quit_game = true;
@@ -450,50 +383,7 @@ invaders_simulate :: () {
 
         if event.key_code == .ESCAPE
             if event.key_pressed should_quit_game = true;
-
-        if event.type == .KEYBOARD {
-            key := event.key_code;
-
-            if key == .ARROW_LEFT   key_left  = event.key_pressed;
-            if key == .ARROW_RIGHT  key_right = event.key_pressed;
-            if key == .ARROW_DOWN   key_down  = event.key_pressed;
-            if key == .ARROW_UP     key_up    = event.key_pressed;
-
-            if key == .SHIFT        shoot_button_down = cast(bool) event.key_pressed;
-        }
     }
-
-    if shoot_button_down {
-        maybe_fire_bullets();
-    }
-
-    dx: Vector2;
-
-    if key_up     dx.y += 1;
-    if key_left   dx.x -= 1;
-    if key_down   dx.y -= 1;
-    if key_right  dx.x += 1;
-
-    if length(dx) > 1 {
-        dx = unit_vector(dx);
-    }
-
-    ship_position += dx * .5 * current_dt;
-
-    x0 := 0.03;
-    x1 := 1 - x0;
-    y0 := 0.03;
-    y1 := 0.35;
-
-    Clamp(*ship_position.x, x0, x1);
-    Clamp(*ship_position.y, y0, y1);
-
-    simulate_spawns();
-    simulate_bullets();
-    simulate_invaders();
-    simulate_pickups();
-
-    for live_emitters update_emitter(it, current_dt);
 }
 
 do_fire_bullets :: () {
