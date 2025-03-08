@@ -305,20 +305,53 @@ init_textures :: () {
 }
 
 init_tile_textures :: () {
-    simple_tile_index := load_tile_texture(*tile_system, "grass.png");
+    grass_tile_index := load_tile_texture(*tile_system, "grass.png");
+    path_tile_index := load_tile_texture(*tile_system, "path.png");
 
-    if simple_tile_index >= 0 {
+    // If path texture doesn't exist yet, you could use grass as a fallback
+    if path_tile_index < 0 {
+        print("Warning: path.png not found, using grass instead\n");
+        path_tile_index = grass_tile_index;
+    }
+
+    if grass_tile_index >= 0 {
+        // Fill the ENTIRE background with grass tiles
         background_layer := get_layer(*tile_system, "background");
         if background_layer {
-            for x: 0..tile_system.grid_width-1 {
-                set_tile(*tile_system, "background", x, 0, simple_tile_index);
-                set_tile(*tile_system, "background", x, tile_system.grid_height-1, simple_tile_index);
+            for y: 0..tile_system.grid_height-1 {
+                for x: 0..tile_system.grid_width-1 {
+                    set_tile(*tile_system, "background", x, y, grass_tile_index);
+                }
             }
+        }
+    }
 
-            for y: 1..tile_system.grid_height-2 {
-                set_tile(*tile_system, "background", 0, y, simple_tile_index);
-                set_tile(*tile_system, "background", tile_system.grid_width-1, y, simple_tile_index);
-            }
+    // Add a path on the foreground layer
+    foreground_layer := get_layer(*tile_system, "foreground");
+    if foreground_layer && path_tile_index >= 0 {
+        // Create a simple path - this will form an "L" shape
+
+        // Calculate middle of screen for path positioning
+        middle_y := tile_system.grid_height / 2;
+        middle_x := tile_system.grid_width / 2;
+
+        // Horizontal path section
+        for x: 5..middle_x+10 {
+            set_tile(*tile_system, "foreground", x, middle_y, path_tile_index);
+        }
+
+        // Vertical path section
+        for y: middle_y..tile_system.grid_height-5 {
+            set_tile(*tile_system, "foreground", middle_x, y, path_tile_index);
+        }
+
+        // You can also set some tile properties for the path if needed
+        // For example, making it walkable but with different custom flags
+        for x: 5..middle_x+10 {
+            set_tile_data(*tile_system, "foreground", x, middle_y, true, 1);
+        }
+        for y: middle_y..tile_system.grid_height-5 {
+            set_tile_data(*tile_system, "foreground", middle_x, y, true, 1);
         }
     }
 }

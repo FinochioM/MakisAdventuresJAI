@@ -129,7 +129,6 @@ load_tile_texture :: (system: *Tile_System, filename: string) -> s32 {
     return cast(s32)index;
 }
 
-// Modify the render_tile_system function in tiles.jai
 render_tile_system :: (system: *Tile_System) {
     for * layer: system.layers {
         if !layer.visible continue;
@@ -137,11 +136,11 @@ render_tile_system :: (system: *Tile_System) {
         for y: 0..system.grid_height-1 {
             for x: 0..system.grid_width-1 {
                 index := get_tile_index(system, x, y);
-                if index < 0 continue;  // Skip invalid indices
+                if index < 0 continue;
 
                 tile := *layer.tiles[index];
 
-                if tile.texture_index < 0 continue;  // Skip empty tiles
+                if tile.texture_index < 0 continue;
 
                 if tile.texture_index >= system.tile_textures.count {
                     print("ERROR: Invalid texture index % (max %)\n",
@@ -152,10 +151,8 @@ render_tile_system :: (system: *Tile_System) {
                 texture := *system.tile_textures[tile.texture_index];
                 pixel_x, pixel_y := grid_to_pixel(system, x, y);
 
-                // Convert to window coordinates for rendering, this applies the scaling
                 window_pos := window_coords_from_absolute(.{xx pixel_x, xx pixel_y});
 
-                // Scale the tile width and height by the scale factor
                 scaled_half_width := (system.tile_width * 0.5) * scale_factor;
                 scaled_half_height := (system.tile_height * 0.5) * scale_factor;
 
