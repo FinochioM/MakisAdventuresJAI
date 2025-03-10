@@ -105,7 +105,7 @@ update_current_level :: (dt: float) {
     level := get_current_level();
     if !level return;
 
-    // I could mplement level-specific update logic here
+    // I could implement level-specific update logic here
     // checking win conditions, spawning enemies, etc.?
 }
 

@@ -259,15 +259,6 @@ invaders_simulate :: () {
                     load_next_level();
                 }
             }
-
-        if event.type == .KEYBOARD {
-            key := event.key_code;
-
-            if key == .ARROW_LEFT   key_left  = event.key_pressed;
-            if key == .ARROW_RIGHT  key_right = event.key_pressed;
-            if key == .ARROW_DOWN   key_down  = event.key_pressed;
-            if key == .ARROW_UP     key_up    = event.key_pressed;
-        }
     }
 }
 
